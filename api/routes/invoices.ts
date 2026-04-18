@@ -1,20 +1,32 @@
 import { Router, type Response } from 'express'
-import { createInvoice, db, seedDb, updateInvoice, type InvoiceStatus } from '../db.js'
+import { type InvoiceStatus } from '../db.js'
 import { canRead, canWriteBilling, requireAuth, requirePermission, type AuthedRequest } from '../middleware/auth.js'
+import { sendSupabaseError } from '../http.js'
+import { getSupabaseAdmin } from '../supabase.js'
 
 const router = Router()
 
 router.get('/', requireAuth, (req: AuthedRequest, res: Response) => {
   requirePermission(canRead, req, res, () => {
-    seedDb()
-    res.status(200).json({ success: true, data: db.invoices })
+    void (async () => {
+      const supabase = getSupabaseAdmin()
+      const { data, error } = await supabase
+        .from('invoices')
+        .select('*')
+        .eq('user_id', req.user!.id)
+        .order('issue_date', { ascending: false })
+        .order('created_at', { ascending: false })
+      if (error) {
+        sendSupabaseError(res, 500, error, 'No se pudieron cargar las facturas')
+        return
+      }
+      res.status(200).json({ success: true, data: data ?? [] })
+    })()
   })
 })
 
 router.post('/', requireAuth, (req: AuthedRequest, res: Response) => {
   requirePermission(canWriteBilling, req, res, () => {
-    seedDb()
-
     const client_id = String(req.body?.client_id ?? '')
     const service_id = req.body?.service_id ? String(req.body.service_id) : undefined
     const issue_date = String(req.body?.issue_date ?? new Date().toISOString().slice(0, 10)).slice(0, 10)
@@ -36,39 +48,86 @@ router.post('/', requireAuth, (req: AuthedRequest, res: Response) => {
     const taxRate = req.body?.tax_rate != null ? Number(req.body.tax_rate) : 0.19
     const subtotal = req.body?.subtotal != null ? Number(req.body.subtotal) : undefined
 
-    const relatedService = service_id ? db.services.find(s => s.id === service_id) : undefined
-    const computedSubtotal = subtotal ?? (relatedService?.agreed_amount ?? 0)
-    const tax = Math.round(computedSubtotal * taxRate)
-    const total = computedSubtotal + tax
+    void (async () => {
+      const supabase = getSupabaseAdmin()
 
-    const invoice = createInvoice({
-      client_id,
-      service_id,
-      invoice_number,
-      issue_date,
-      due_date,
-      subtotal: computedSubtotal,
-      tax,
-      total,
-      status,
-    })
+      let serviceSubtotal = 0
+      if (service_id) {
+        const svc = await supabase
+          .from('services')
+          .select('agreed_amount')
+          .eq('id', service_id)
+          .eq('user_id', req.user!.id)
+          .single()
+        if (svc.error) {
+          sendSupabaseError(res, 400, svc.error, 'Servicio inválido')
+          return
+        }
+        serviceSubtotal = Number(svc.data?.agreed_amount ?? 0)
+      }
 
-    res.status(201).json({ success: true, data: invoice })
+      const computedSubtotal = subtotal ?? serviceSubtotal
+      const tax = Math.round(computedSubtotal * taxRate)
+      const total = computedSubtotal + tax
+
+      const payload = {
+        user_id: req.user!.id,
+        client_id,
+        service_id: service_id ?? null,
+        invoice_number: invoice_number ?? null,
+        issue_date,
+        due_date: due_date ?? null,
+        subtotal: computedSubtotal,
+        tax,
+        total,
+        status,
+      }
+
+      const { data, error } = await supabase.from('invoices').insert(payload).select('*').single()
+      if (error || !data) {
+        sendSupabaseError(res, 400, error, 'No se pudo crear la factura')
+        return
+      }
+      res.status(201).json({ success: true, data })
+    })()
   })
 })
 
 router.patch('/:id', requireAuth, (req: AuthedRequest, res: Response) => {
   requirePermission(canWriteBilling, req, res, () => {
-    seedDb()
     const id = String(req.params.id)
-    const updated = updateInvoice(id, req.body ?? {})
-    if (!updated) {
-      res.status(404).json({ success: false, error: 'Factura no encontrada' })
-      return
-    }
-    res.status(200).json({ success: true, data: updated })
+    void (async () => {
+      const supabase = getSupabaseAdmin()
+      const patch = {
+        client_id: req.body?.client_id != null ? String(req.body.client_id) : undefined,
+        service_id: req.body?.service_id != null ? String(req.body.service_id) : undefined,
+        invoice_number: req.body?.invoice_number != null ? String(req.body.invoice_number) : undefined,
+        issue_date: req.body?.issue_date != null ? String(req.body.issue_date).slice(0, 10) : undefined,
+        due_date: req.body?.due_date != null ? String(req.body.due_date).slice(0, 10) : undefined,
+        subtotal: req.body?.subtotal != null ? Number(req.body.subtotal) : undefined,
+        tax: req.body?.tax != null ? Number(req.body.tax) : undefined,
+        total: req.body?.total != null ? Number(req.body.total) : undefined,
+        status: req.body?.status != null ? String(req.body.status) : undefined,
+      }
+      const { data, error } = await supabase
+        .from('invoices')
+        .update(patch)
+        .eq('id', id)
+        .eq('user_id', req.user!.id)
+        .select('*')
+        .single()
+
+      if (error) {
+        sendSupabaseError(res, 400, error, 'No se pudo actualizar la factura')
+        return
+      }
+      if (!data) {
+        res.status(404).json({ success: false, error: 'Factura no encontrada' })
+        return
+      }
+      res.status(200).json({ success: true, data })
+    })()
   })
 })
 
 export default router
-

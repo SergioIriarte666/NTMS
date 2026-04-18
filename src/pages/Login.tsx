@@ -83,11 +83,16 @@ export default function Login() {
               onSubmit={handleSubmit(async values => {
                 setServerError(null)
                 try {
-                  const res = await apiPostJson<{ success: true; token: string; user: { role: Role; id: string; email: string; full_name: string; is_active: boolean } }>(
+                  const res = await apiPostJson<{
+                    success: true
+                    token: string
+                    refresh_token: string
+                    user: { role: Role; id: string; email: string; full_name: string; is_active: boolean }
+                  }>(
                     '/api/auth/login',
                     values,
                   )
-                  setSession(res.token, res.user)
+                  setSession(res.token, res.refresh_token, res.user)
                   navigate('/app/dashboard', { replace: true })
                 } catch (e) {
                   setServerError(e instanceof Error ? e.message : 'Error al ingresar')

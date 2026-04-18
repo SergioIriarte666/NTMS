@@ -15,7 +15,7 @@ function renderLogin() {
 describe('Login', () => {
   beforeEach(() => {
     localStorage.clear()
-    useAuthStore.setState({ hydrated: true, token: null, user: null })
+    useAuthStore.setState({ hydrated: true, token: null, refresh_token: null, user: null })
     vi.restoreAllMocks()
   })
 
@@ -36,6 +36,7 @@ describe('Login', () => {
           JSON.stringify({
             success: true,
             token: 'token-demo',
+            refresh_token: 'refresh-demo',
             user: {
               id: 'u1',
               email: 'demo@gruas.cl',
@@ -57,4 +58,3 @@ describe('Login', () => {
     })
   })
 })
-

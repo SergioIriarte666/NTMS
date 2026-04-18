@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from 'express'
 import type { Role } from '../db.js'
-import { getSessionByToken } from '../db.js'
+import { getSupabaseAdmin } from '../supabase.js'
 
 export type AuthedRequest = Request & {
   user?: {
@@ -20,14 +20,33 @@ export function requireAuth(req: AuthedRequest, res: Response, next: NextFunctio
     return
   }
 
-  const session = getSessionByToken(token)
-  if (!session || !session.user.is_active) {
-    res.status(401).json({ success: false, error: 'Sesión inválida' })
-    return
-  }
+  void (async () => {
+    const supabase = getSupabaseAdmin()
+    const { data, error } = await supabase.auth.getUser(token)
+    if (error || !data.user) {
+      res.status(401).json({ success: false, error: 'Sesión inválida' })
+      return
+    }
 
-  req.user = session.user
-  next()
+    const roleRaw = data.user.user_metadata?.role
+    const allowedRoles: Role[] = ['admin', 'operaciones', 'facturacion', 'consulta']
+    const role = allowedRoles.includes(roleRaw) ? (roleRaw as Role) : process.env.NODE_ENV === 'production' ? 'consulta' : 'admin'
+
+    req.user = {
+      id: data.user.id,
+      email: String(data.user.email ?? ''),
+      full_name: String(data.user.user_metadata?.full_name ?? data.user.user_metadata?.name ?? ''),
+      role,
+      is_active: data.user.user_metadata?.is_active === false ? false : true,
+    }
+
+    if (!req.user.is_active) {
+      res.status(401).json({ success: false, error: 'Sesión inválida' })
+      return
+    }
+
+    next()
+  })()
 }
 
 export function canRead(role: Role) {
@@ -60,4 +79,3 @@ export function requirePermission(
   }
   next()
 }
-

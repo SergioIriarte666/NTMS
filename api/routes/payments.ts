@@ -1,19 +1,31 @@
 import { Router, type Response } from 'express'
-import { createPayment, db, seedDb, updateInvoice } from '../db.js'
 import { canRead, canWriteBilling, requireAuth, requirePermission, type AuthedRequest } from '../middleware/auth.js'
+import { sendSupabaseError } from '../http.js'
+import { getSupabaseAdmin } from '../supabase.js'
 
 const router = Router()
 
 router.get('/', requireAuth, (req: AuthedRequest, res: Response) => {
   requirePermission(canRead, req, res, () => {
-    seedDb()
-    res.status(200).json({ success: true, data: db.payments })
+    void (async () => {
+      const supabase = getSupabaseAdmin()
+      const { data, error } = await supabase
+        .from('payments')
+        .select('*')
+        .eq('user_id', req.user!.id)
+        .order('paid_date', { ascending: false })
+        .order('created_at', { ascending: false })
+      if (error) {
+        sendSupabaseError(res, 500, error, 'No se pudieron cargar los pagos')
+        return
+      }
+      res.status(200).json({ success: true, data: data ?? [] })
+    })()
   })
 })
 
 router.post('/', requireAuth, (req: AuthedRequest, res: Response) => {
   requirePermission(canWriteBilling, req, res, () => {
-    seedDb()
     const invoice_id = String(req.body?.invoice_id ?? '')
     const paid_date = String(req.body?.paid_date ?? new Date().toISOString().slice(0, 10)).slice(0, 10)
     const amount = Number(req.body?.amount ?? NaN)
@@ -23,31 +35,59 @@ router.post('/', requireAuth, (req: AuthedRequest, res: Response) => {
       return
     }
 
-    const invoice = db.invoices.find(i => i.id === invoice_id)
-    if (!invoice) {
-      res.status(404).json({ success: false, error: 'Factura no encontrada' })
-      return
-    }
+    void (async () => {
+      const supabase = getSupabaseAdmin()
+      const invoice = await supabase
+        .from('invoices')
+        .select('id,total,status')
+        .eq('id', invoice_id)
+        .eq('user_id', req.user!.id)
+        .single()
 
-    const payment = createPayment({
-      invoice_id,
-      paid_date,
-      method: req.body?.method ? String(req.body.method) : undefined,
-      amount,
-      reference: req.body?.reference ? String(req.body.reference) : undefined,
-    })
+      if (invoice.error || !invoice.data) {
+        res.status(404).json({ success: false, error: 'Factura no encontrada' })
+        return
+      }
 
-    const paidSum = db.payments
-      .filter(p => p.invoice_id === invoice_id)
-      .reduce((acc, p) => acc + p.amount, 0)
+      const payload = {
+        user_id: req.user!.id,
+        invoice_id,
+        paid_date,
+        method: req.body?.method ? String(req.body.method) : null,
+        amount,
+        reference: req.body?.reference ? String(req.body.reference) : null,
+      }
 
-    if (paidSum >= invoice.total && invoice.status !== 'pagada') {
-      updateInvoice(invoice_id, { status: 'pagada' })
-    }
+      const inserted = await supabase.from('payments').insert(payload).select('*').single()
+      if (inserted.error || !inserted.data) {
+        sendSupabaseError(res, 400, inserted.error, 'No se pudo crear el pago')
+        return
+      }
 
-    res.status(201).json({ success: true, data: payment })
+      const payments = await supabase
+        .from('payments')
+        .select('amount')
+        .eq('invoice_id', invoice_id)
+        .eq('user_id', req.user!.id)
+
+      if (payments.error) {
+        sendSupabaseError(res, 500, payments.error, 'No se pudieron recalcular los pagos')
+        return
+      }
+
+      const paidSum = (payments.data ?? []).reduce((acc, p) => acc + Number(p.amount ?? 0), 0)
+
+      if (paidSum >= Number(invoice.data.total ?? 0) && invoice.data.status !== 'pagada') {
+        await supabase
+          .from('invoices')
+          .update({ status: 'pagada' })
+          .eq('id', invoice_id)
+          .eq('user_id', req.user!.id)
+      }
+
+      res.status(201).json({ success: true, data: inserted.data })
+    })()
   })
 })
 
 export default router
-

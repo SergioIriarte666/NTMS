@@ -4,6 +4,7 @@ import { ThemeToggle } from '@/components/ThemeToggle'
 import { useAuthStore } from '@/stores/authStore'
 import { apiPostJson } from '@/utils/api'
 import { Button } from '@/components/ui/Button'
+import { supabase } from '@/lib/supabaseClient'
 
 function titleFromPath(pathname: string) {
   if (pathname.startsWith('/app/dashboard')) return 'Panel'
@@ -20,6 +21,8 @@ export function Topbar() {
   const navigate = useNavigate()
   const user = useAuthStore(s => s.user)
   const clearSession = useAuthStore(s => s.clearSession)
+  const token = useAuthStore(s => s.token)
+  const refresh_token = useAuthStore(s => s.refresh_token)
 
   const title = titleFromPath(location.pathname)
 
@@ -46,6 +49,10 @@ export function Topbar() {
             leftIcon={<LogOut className="h-4 w-4" />}
             onClick={async () => {
               try {
+                if (token && refresh_token) {
+                  await supabase.auth.setSession({ access_token: token, refresh_token })
+                }
+                await supabase.auth.signOut()
                 await apiPostJson<{ success: true }>('/api/auth/logout', {})
               } catch (e) {
                 void e

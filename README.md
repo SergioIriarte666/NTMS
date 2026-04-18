@@ -1,3 +1,23 @@
+# NTMS
+
+## Desarrollo
+
+1) Crear un archivo `.env` basado en `.env.example`.
+
+2) Levantar el proyecto:
+
+```bash
+pnpm install
+pnpm run dev
+```
+
+Notas:
+- El backend usa `SUPABASE_URL`, `SUPABASE_ANON_KEY` y `SUPABASE_SERVICE_ROLE_KEY`.
+- El frontend usa `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`.
+- Si quieres que el endpoint `/api/auth/login` auto-cree el usuario demo en Supabase, setea `ALLOW_DEMO_USER_SEED=true`.
+
+---
+
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.

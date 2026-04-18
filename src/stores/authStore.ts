@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { supabase } from '@/lib/supabaseClient'
 
 export type Role = 'admin' | 'operaciones' | 'facturacion' | 'consulta'
 
@@ -12,14 +13,17 @@ export type AuthedUser = {
 
 type PersistedAuth = {
   token: string
+  refresh_token: string
   user: AuthedUser
 }
 
 type AuthState = {
   hydrated: boolean
   token: string | null
+  refresh_token: string | null
   user: AuthedUser | null
-  setSession: (token: string, user: AuthedUser) => void
+  setSession: (token: string, refresh_token: string, user: AuthedUser) => void
+  setUser: (user: AuthedUser) => void
   clearSession: () => void
   hydrate: () => void
 }
@@ -37,14 +41,22 @@ function safeParse(json: string): PersistedAuth | null {
 export const useAuthStore = create<AuthState>((set, get) => ({
   hydrated: false,
   token: null,
+  refresh_token: null,
   user: null,
-  setSession: (token, user) => {
-    localStorage.setItem(storageKey, JSON.stringify({ token, user }))
-    set({ token, user })
+  setSession: (token, refresh_token, user) => {
+    localStorage.setItem(storageKey, JSON.stringify({ token, refresh_token, user }))
+    set({ token, refresh_token, user })
+    void supabase.auth.setSession({ access_token: token, refresh_token })
+  },
+  setUser: user => {
+    const state = get()
+    if (!state.token || !state.refresh_token) return
+    localStorage.setItem(storageKey, JSON.stringify({ token: state.token, refresh_token: state.refresh_token, user }))
+    set({ user })
   },
   clearSession: () => {
     localStorage.removeItem(storageKey)
-    set({ token: null, user: null })
+    set({ token: null, refresh_token: null, user: null })
   },
   hydrate: () => {
     if (get().hydrated) return
@@ -53,8 +65,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({
       hydrated: true,
       token: parsed?.token ?? null,
+      refresh_token: parsed?.refresh_token ?? null,
       user: parsed?.user ?? null,
     })
+    if (parsed?.token && parsed.refresh_token) {
+      void supabase.auth.setSession({ access_token: parsed.token, refresh_token: parsed.refresh_token })
+    }
   },
 }))
-
