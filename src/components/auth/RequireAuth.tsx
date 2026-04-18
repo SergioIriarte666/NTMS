@@ -49,8 +49,7 @@ export function RequireAuth() {
         clearSession()
         setValid(false)
       } finally {
-        if (cancelled) return
-        setChecking(false)
+        if (!cancelled) setChecking(false)
       }
     })()
 

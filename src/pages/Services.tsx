@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -9,11 +9,12 @@ import { Select } from '@/components/ui/Select'
 import { Modal } from '@/components/ui/Modal'
 import { Badge } from '@/components/ui/Badge'
 import { apiGetData, apiPatchData, apiPostData } from '@/utils/api'
-import type { Client, Service, Vehicle, Driver, ServiceStatus } from '@/types/domain'
+import type { Client, ClientBranch, Service, Vehicle, Driver, ServiceStatus } from '@/types/domain'
 import { useAuthStore } from '@/stores/authStore'
 
 const schema = z.object({
   client_id: z.string().min(1, 'Cliente requerido'),
+  branch_id: z.string().optional().or(z.literal('')),
   service_date: z.string().min(10, 'Fecha requerida'),
   start_time: z.string().optional(),
   origin: z.string().optional(),
@@ -49,6 +50,7 @@ export default function Services() {
 
   const [services, setServices] = useState<Service[]>([])
   const [clients, setClients] = useState<Client[]>([])
+  const [branches, setBranches] = useState<ClientBranch[]>([])
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [drivers, setDrivers] = useState<Driver[]>([])
   const [loading, setLoading] = useState(true)
@@ -62,12 +64,15 @@ export default function Services() {
   const {
     register,
     handleSubmit,
+    watch,
     reset,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
       client_id: '',
+      branch_id: '',
       service_date: new Date().toISOString().slice(0, 10),
       start_time: '',
       origin: '',
@@ -84,14 +89,16 @@ export default function Services() {
   const load = async () => {
     setLoading(true)
     try {
-      const [s, c, v, d] = await Promise.all([
+      const [s, c, b, v, d] = await Promise.all([
         apiGetData<Service[]>('/api/services'),
         apiGetData<Client[]>('/api/clients'),
+        apiGetData<ClientBranch[]>('/api/branches'),
         apiGetData<Vehicle[]>('/api/fleet/vehicles'),
         apiGetData<Driver[]>('/api/fleet/drivers'),
       ])
       setServices(s)
       setClients(c)
+      setBranches(b)
       setVehicles(v)
       setDrivers(d)
     } finally {
@@ -106,6 +113,17 @@ export default function Services() {
   const clientMap = useMemo(() => new Map(clients.map(c => [c.id, c])), [clients])
   const vehicleMap = useMemo(() => new Map(vehicles.map(v => [v.id, v])), [vehicles])
   const driverMap = useMemo(() => new Map(drivers.map(d => [d.id, d])), [drivers])
+  const branchMap = useMemo(() => new Map(branches.map(b => [b.id, b])), [branches])
+
+  const watchedClientId = watch('client_id')
+  const prevClientId = useRef<string>('')
+  useEffect(() => {
+    if (!watchedClientId) return
+    if (prevClientId.current && prevClientId.current !== watchedClientId) {
+      setValue('branch_id', '')
+    }
+    prevClientId.current = watchedClientId
+  }, [setValue, watchedClientId])
 
   const filtered = useMemo(() => {
     let data = services
@@ -164,6 +182,7 @@ export default function Services() {
                 setEditing(null)
                 reset({
                   client_id: clients[0]?.id ?? '',
+                  branch_id: '',
                   service_date: new Date().toISOString().slice(0, 10),
                   start_time: '',
                   origin: '',
@@ -189,6 +208,7 @@ export default function Services() {
               <tr>
                 <th className="px-3 py-2">Fecha/Hora</th>
                 <th className="px-3 py-2">Cliente</th>
+                <th className="px-3 py-2">Sucursal</th>
                 <th className="px-3 py-2">Origen → Destino</th>
                 <th className="px-3 py-2">Estado</th>
                 <th className="px-3 py-2">Grúa</th>
@@ -207,6 +227,9 @@ export default function Services() {
                     {s.start_time ? <span className="text-zinc-500"> · {s.start_time}</span> : null}
                   </td>
                   <td className="px-3 py-2">{clientMap.get(s.client_id)?.razon_social ?? '—'}</td>
+                  <td className="px-3 py-2 text-zinc-700 dark:text-zinc-200">
+                    {s.branch_id ? (branchMap.get(s.branch_id)?.name ?? '—') : '—'}
+                  </td>
                   <td className="px-3 py-2">
                     <span className="text-zinc-700 dark:text-zinc-200">{s.origin || '—'}</span>
                     <span className="mx-1 text-zinc-400">→</span>
@@ -222,6 +245,7 @@ export default function Services() {
                         setEditing(s)
                         reset({
                           client_id: s.client_id,
+                          branch_id: s.branch_id ?? '',
                           service_date: s.service_date,
                           start_time: s.start_time ?? '',
                           origin: s.origin ?? '',
@@ -243,14 +267,14 @@ export default function Services() {
               ))}
               {!loading && filtered.length === 0 && (
                 <tr>
-                  <td className="px-3 py-6 text-center text-sm text-zinc-600 dark:text-zinc-400" colSpan={7}>
+                  <td className="px-3 py-6 text-center text-sm text-zinc-600 dark:text-zinc-400" colSpan={8}>
                     Sin servicios.
                   </td>
                 </tr>
               )}
               {loading && (
                 <tr>
-                  <td className="px-3 py-6 text-center text-sm text-zinc-600 dark:text-zinc-400" colSpan={7}>
+                  <td className="px-3 py-6 text-center text-sm text-zinc-600 dark:text-zinc-400" colSpan={8}>
                     Cargando…
                   </td>
                 </tr>
@@ -275,6 +299,7 @@ export default function Services() {
                 if (!editable) return
                 const payload = {
                   ...values,
+                  branch_id: values.branch_id ? values.branch_id : null,
                   vehicle_id: values.vehicle_id || undefined,
                   driver_id: values.driver_id || undefined,
                   agreed_amount: values.agreed_amount ? Number(values.agreed_amount) : undefined,
@@ -304,6 +329,26 @@ export default function Services() {
                     {c.razon_social}
                   </option>
                 ))}
+              </Select>
+            </div>
+          </div>
+
+          <div className="sm:col-span-2">
+            <label className="text-sm font-medium">Sucursal</label>
+            <div className="mt-1">
+              <Select
+                disabled={!editable || !watchedClientId}
+                {...register('branch_id')}
+                error={errors.branch_id?.message}
+              >
+                <option value="">—</option>
+                {branches
+                  .filter(b => b.client_id === watchedClientId)
+                  .map(b => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
               </Select>
             </div>
           </div>

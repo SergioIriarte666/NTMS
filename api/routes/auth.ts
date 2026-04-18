@@ -4,8 +4,43 @@ import { getSupabaseAdmin, getSupabaseAnon, supabaseErrorToMessage } from '../su
 
 async function seedUserDemoData(userId: string) {
   const supabase = getSupabaseAdmin()
-  const existing = await supabase.from('clients').select('id').eq('user_id', userId).limit(1)
-  if (existing.data && existing.data.length > 0) return
+  const existingClients = await supabase.from('clients').select('id, direccion').eq('user_id', userId)
+  if (existingClients.data && existingClients.data.length > 0) {
+    const existingBranches = await supabase.from('client_branches').select('id').eq('user_id', userId).limit(1)
+    if (!existingBranches.data || existingBranches.data.length === 0) {
+      const inserted = await supabase
+        .from('client_branches')
+        .insert(
+          existingClients.data.map(c => ({
+            user_id: userId,
+            client_id: c.id,
+            name: 'Casa Matriz',
+            direccion: c.direccion ?? null,
+            is_default: true,
+          })),
+        )
+        .select('id, client_id')
+
+      if (inserted.data && inserted.data.length > 0) {
+        for (const b of inserted.data) {
+          await supabase
+            .from('services')
+            .update({ branch_id: b.id })
+            .eq('user_id', userId)
+            .eq('client_id', b.client_id)
+            .is('branch_id', null)
+
+          await supabase
+            .from('invoices')
+            .update({ branch_id: b.id })
+            .eq('user_id', userId)
+            .eq('client_id', b.client_id)
+            .is('branch_id', null)
+        }
+      }
+    }
+    return
+  }
 
   const today = new Date().toISOString().slice(0, 10)
   const due = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
@@ -45,11 +80,88 @@ async function seedUserDemoData(userId: string) {
   const c1 = clients.data[0]
   const c2 = clients.data[1]
 
+  const branches = await supabase
+    .from('client_branches')
+    .insert([
+      {
+        user_id: userId,
+        client_id: c1.id,
+        name: 'Casa Matriz',
+        direccion: 'Santiago Centro',
+        email: 'matriz@andes.cl',
+        telefono: '+56 2 2345 6789',
+        is_default: true,
+      },
+      {
+        user_id: userId,
+        client_id: c1.id,
+        name: 'Sucursal Norte',
+        direccion: 'Quilicura',
+        email: 'norte@andes.cl',
+        telefono: '+56 2 2400 0000',
+        is_default: false,
+      },
+      {
+        user_id: userId,
+        client_id: c2.id,
+        name: 'Casa Matriz',
+        direccion: 'San Bernardo',
+        email: 'contacto@rutasur.cl',
+        telefono: '+56 9 8765 4321',
+        is_default: true,
+      },
+      {
+        user_id: userId,
+        client_id: c2.id,
+        name: 'Sucursal Sur',
+        direccion: 'Buin',
+        email: 'sur@rutasur.cl',
+        telefono: '+56 9 8000 0000',
+        is_default: false,
+      },
+    ])
+    .select('*')
+
+  const c1Branches = (branches.data ?? []).filter(b => String(b.client_id) === String(c1.id))
+  const c2Branches = (branches.data ?? []).filter(b => String(b.client_id) === String(c2.id))
+  const c1Default = c1Branches.find(b => b.is_default) ?? c1Branches[0]
+  const c2Default = c2Branches.find(b => b.is_default) ?? c2Branches[0]
+
   const vehicles = await supabase
     .from('vehicles')
     .insert([
-      { user_id: userId, patente: 'ABCD12', tipo: 'Pluma', capacidad: '5T', status: 'disponible', is_active: true },
-      { user_id: userId, patente: 'WXYZ34', tipo: 'Plataforma', capacidad: '3.5T', status: 'ocupado', is_active: true },
+      {
+        user_id: userId,
+        patente: 'ABCD12',
+        tipo: 'Pesada',
+        capacidad: '5T',
+        empresa_rut: '76.769.841-0',
+        empresa_razon_social: 'Gruas 5 Norte',
+        marca: 'Freightliner',
+        modelo: 'Columbia',
+        categoria_peaje: 'Camión Pesado',
+        venc_permiso_circulacion: '2026-09-30',
+        venc_seguro: '2026-09-30',
+        venc_revision_tecnica: '2025-11-08',
+        status: 'disponible',
+        is_active: true,
+      },
+      {
+        user_id: userId,
+        patente: 'WXYZ34',
+        tipo: 'Liviana',
+        capacidad: '3.5T',
+        empresa_rut: '76.769.841-0',
+        empresa_razon_social: 'Gruas 5 Norte',
+        marca: 'Isuzu',
+        modelo: 'NPR',
+        categoria_peaje: 'Camión Liviano',
+        venc_permiso_circulacion: '2026-03-31',
+        venc_seguro: '2026-03-31',
+        venc_revision_tecnica: '2025-08-20',
+        status: 'ocupado',
+        is_active: true,
+      },
     ])
     .select('*')
 
@@ -91,6 +203,7 @@ async function seedUserDemoData(userId: string) {
       {
         user_id: userId,
         client_id: c1.id,
+        branch_id: c1Default?.id ?? null,
         service_date: today,
         start_time: '10:30',
         origin: 'Providencia',
@@ -105,6 +218,7 @@ async function seedUserDemoData(userId: string) {
       {
         user_id: userId,
         client_id: c2.id,
+        branch_id: c2Default?.id ?? null,
         service_date: today,
         start_time: '08:15',
         origin: 'San Bernardo',
@@ -130,6 +244,7 @@ async function seedUserDemoData(userId: string) {
       user_id: userId,
       client_id: c2.id,
       service_id: s2.id,
+      branch_id: c2Default?.id ?? null,
       invoice_number: 'F-000123',
       issue_date: today,
       due_date: due,

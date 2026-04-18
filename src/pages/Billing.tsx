@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { Select } from '@/components/ui/Select'
 import { apiGetData, apiPostData } from '@/utils/api'
-import type { Client, Invoice, Payment, Service } from '@/types/domain'
+import type { Client, ClientBranch, Invoice, Payment, Service } from '@/types/domain'
 import { useAuthStore } from '@/stores/authStore'
 
 function canEdit(role: string | undefined) {
@@ -48,6 +48,7 @@ export default function Billing() {
   const [tab, setTab] = useState<'unbilled' | 'invoices' | 'payments'>('unbilled')
 
   const [clients, setClients] = useState<Client[]>([])
+  const [branches, setBranches] = useState<ClientBranch[]>([])
   const [unbilled, setUnbilled] = useState<Service[]>([])
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [payments, setPayments] = useState<Payment[]>([])
@@ -85,13 +86,15 @@ export default function Billing() {
   const load = async () => {
     setLoading(true)
     try {
-      const [c, u, i, p] = await Promise.all([
+      const [c, b, u, i, p] = await Promise.all([
         apiGetData<Client[]>('/api/clients'),
+        apiGetData<ClientBranch[]>('/api/branches'),
         apiGetData<Service[]>('/api/services/unbilled/completed'),
         apiGetData<Invoice[]>('/api/invoices'),
         apiGetData<Payment[]>('/api/payments'),
       ])
       setClients(c)
+      setBranches(b)
       setUnbilled(u)
       setInvoices(i)
       setPayments(p)
@@ -105,6 +108,7 @@ export default function Billing() {
   }, [])
 
   const clientMap = useMemo(() => new Map(clients.map(c => [c.id, c])), [clients])
+  const branchMap = useMemo(() => new Map(branches.map(b => [b.id, b])), [branches])
   const invoiceMap = useMemo(() => new Map(invoices.map(i => [i.id, i])), [invoices])
   const unbilledById = useMemo(() => new Map(unbilled.map(s => [s.id, s])), [unbilled])
 
@@ -172,6 +176,7 @@ export default function Billing() {
                 <tr>
                   <th className="px-3 py-2">Servicio</th>
                   <th className="px-3 py-2">Cliente</th>
+                  <th className="px-3 py-2">Sucursal</th>
                   <th className="px-3 py-2">Fecha</th>
                   <th className="px-3 py-2 text-right">Monto</th>
                 </tr>
@@ -184,6 +189,7 @@ export default function Billing() {
                   >
                     <td className="px-3 py-2 font-medium">{s.service_type || 'Servicio'}</td>
                     <td className="px-3 py-2">{clientMap.get(s.client_id)?.razon_social ?? '—'}</td>
+                    <td className="px-3 py-2">{s.branch_id ? (branchMap.get(s.branch_id)?.name ?? '—') : '—'}</td>
                     <td className="px-3 py-2">{s.service_date}</td>
                     <td className="px-3 py-2 text-right">
                       {s.agreed_amount ? `$${s.agreed_amount.toLocaleString('es-CL')}` : '—'}
@@ -192,14 +198,14 @@ export default function Billing() {
                 ))}
                 {!loading && unbilled.length === 0 && (
                   <tr>
-                    <td className="px-3 py-6 text-center text-sm text-zinc-600 dark:text-zinc-400" colSpan={4}>
+                    <td className="px-3 py-6 text-center text-sm text-zinc-600 dark:text-zinc-400" colSpan={5}>
                       No hay servicios completados pendientes de facturar.
                     </td>
                   </tr>
                 )}
                 {loading && (
                   <tr>
-                    <td className="px-3 py-6 text-center text-sm text-zinc-600 dark:text-zinc-400" colSpan={4}>
+                    <td className="px-3 py-6 text-center text-sm text-zinc-600 dark:text-zinc-400" colSpan={5}>
                       Cargando…
                     </td>
                   </tr>
@@ -216,6 +222,7 @@ export default function Billing() {
                 <tr>
                   <th className="px-3 py-2">Nº</th>
                   <th className="px-3 py-2">Cliente</th>
+                  <th className="px-3 py-2">Sucursal</th>
                   <th className="px-3 py-2">Emisión</th>
                   <th className="px-3 py-2">Estado</th>
                   <th className="px-3 py-2 text-right">Total</th>
@@ -229,6 +236,7 @@ export default function Billing() {
                   >
                     <td className="px-3 py-2 font-medium">{i.invoice_number || '—'}</td>
                     <td className="px-3 py-2">{clientMap.get(i.client_id)?.razon_social ?? '—'}</td>
+                    <td className="px-3 py-2">{i.branch_id ? (branchMap.get(i.branch_id)?.name ?? '—') : '—'}</td>
                     <td className="px-3 py-2">{i.issue_date}</td>
                     <td className="px-3 py-2">{invoiceBadge(i.status)}</td>
                     <td className="px-3 py-2 text-right">${i.total.toLocaleString('es-CL')}</td>
@@ -236,14 +244,14 @@ export default function Billing() {
                 ))}
                 {!loading && invoices.length === 0 && (
                   <tr>
-                    <td className="px-3 py-6 text-center text-sm text-zinc-600 dark:text-zinc-400" colSpan={5}>
+                    <td className="px-3 py-6 text-center text-sm text-zinc-600 dark:text-zinc-400" colSpan={6}>
                       Sin facturas.
                     </td>
                   </tr>
                 )}
                 {loading && (
                   <tr>
-                    <td className="px-3 py-6 text-center text-sm text-zinc-600 dark:text-zinc-400" colSpan={5}>
+                    <td className="px-3 py-6 text-center text-sm text-zinc-600 dark:text-zinc-400" colSpan={6}>
                       Cargando…
                     </td>
                   </tr>
@@ -438,4 +446,3 @@ export default function Billing() {
     </div>
   )
 }
-

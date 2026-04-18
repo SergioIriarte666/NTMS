@@ -4,6 +4,7 @@ import Dashboard from '@/pages/Dashboard'
 import Clients from '@/pages/Clients'
 import Services from '@/pages/Services'
 import Fleet from '@/pages/Fleet'
+import Drivers from '@/pages/Drivers'
 import Billing from '@/pages/Billing'
 import Settings from '@/pages/Settings'
 import { RequireAuth } from '@/components/auth/RequireAuth'
@@ -22,6 +23,7 @@ export default function App() {
             <Route path="clientes" element={<Clients />} />
             <Route path="servicios" element={<Services />} />
             <Route path="flota" element={<Fleet />} />
+            <Route path="operadores" element={<Drivers />} />
             <Route path="facturacion" element={<Billing />} />
             <Route path="configuracion" element={<Settings />} />
           </Route>

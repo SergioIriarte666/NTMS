@@ -38,6 +38,8 @@ router.post('/', requireAuth, (req: AuthedRequest, res: Response) => {
     const client_id = String(req.body?.client_id ?? '')
     const service_date = String(req.body?.service_date ?? '').slice(0, 10)
     const status = String(req.body?.status ?? 'pendiente') as ServiceStatus
+    const branch_id_raw = req.body?.branch_id != null ? String(req.body.branch_id) : undefined
+    const branch_id = branch_id_raw && branch_id_raw.trim() ? branch_id_raw.trim() : undefined
 
     if (!client_id || !service_date) {
       res.status(400).json({ success: false, error: 'client_id y service_date son requeridos' })
@@ -52,9 +54,26 @@ router.post('/', requireAuth, (req: AuthedRequest, res: Response) => {
 
     void (async () => {
       const supabase = getSupabaseAdmin()
+
+      if (branch_id) {
+        const { data: branch, error: branchErr } = await supabase
+          .from('client_branches')
+          .select('id')
+          .eq('id', branch_id)
+          .eq('user_id', req.user!.id)
+          .eq('client_id', client_id)
+          .maybeSingle()
+
+        if (branchErr || !branch) {
+          sendSupabaseError(res, 400, branchErr, 'Sucursal inválida')
+          return
+        }
+      }
+
       const payload = {
         user_id: req.user!.id,
         client_id,
+        branch_id: branch_id ?? null,
         service_date,
         start_time: req.body?.start_time ? String(req.body.start_time) : null,
         origin: req.body?.origin ? String(req.body.origin) : null,
@@ -83,8 +102,55 @@ router.patch('/:id', requireAuth, (req: AuthedRequest, res: Response) => {
     const id = String(req.params.id)
     void (async () => {
       const supabase = getSupabaseAdmin()
+      const nextClientId = req.body?.client_id != null ? String(req.body.client_id) : undefined
+      const branchRaw = req.body?.branch_id != null ? String(req.body.branch_id) : undefined
+      const branchIdToSet =
+        branchRaw === undefined
+          ? (nextClientId != null ? null : undefined)
+          : branchRaw.trim()
+            ? branchRaw.trim()
+            : null
+
+      let effectiveClientId: string | null = nextClientId ?? null
+      if (branchIdToSet && typeof branchIdToSet === 'string' && !effectiveClientId) {
+        const { data: existing, error: existingErr } = await supabase
+          .from('services')
+          .select('client_id')
+          .eq('id', id)
+          .eq('user_id', req.user!.id)
+          .maybeSingle()
+
+        if (existingErr) {
+          sendSupabaseError(res, 400, existingErr, 'Servicio inválido')
+          return
+        }
+
+        if (!existing) {
+          res.status(404).json({ success: false, error: 'Servicio no encontrado' })
+          return
+        }
+
+        effectiveClientId = String(existing.client_id)
+      }
+
+      if (branchIdToSet && typeof branchIdToSet === 'string') {
+        const { data: branch, error: branchErr } = await supabase
+          .from('client_branches')
+          .select('id')
+          .eq('id', branchIdToSet)
+          .eq('user_id', req.user!.id)
+          .eq('client_id', effectiveClientId ?? '')
+          .maybeSingle()
+
+        if (branchErr || !branch) {
+          sendSupabaseError(res, 400, branchErr, 'Sucursal inválida')
+          return
+        }
+      }
+
       const patch = {
-        client_id: req.body?.client_id != null ? String(req.body.client_id) : undefined,
+        client_id: nextClientId,
+        branch_id: branchIdToSet,
         service_date: req.body?.service_date != null ? String(req.body.service_date).slice(0, 10) : undefined,
         start_time: req.body?.start_time != null ? String(req.body.start_time) : undefined,
         origin: req.body?.origin != null ? String(req.body.origin) : undefined,

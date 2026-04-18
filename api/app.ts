@@ -11,6 +11,8 @@ import cors from 'cors'
 import dotenv from 'dotenv'
 import authRoutes from './routes/auth.js'
 import clientsRoutes from './routes/clients.js'
+import branchesRoutes from './routes/branches.js'
+import clientBranchesRoutes from './routes/clientBranches.js'
 import servicesRoutes from './routes/services.js'
 import fleetRoutes from './routes/fleet.js'
 import invoicesRoutes from './routes/invoices.js'
@@ -30,6 +32,8 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }))
  */
 app.use('/api/auth', authRoutes)
 app.use('/api/clients', clientsRoutes)
+app.use('/api/branches', branchesRoutes)
+app.use('/api/clients/:clientId/branches', clientBranchesRoutes)
 app.use('/api/services', servicesRoutes)
 app.use('/api/fleet', fleetRoutes)
 app.use('/api/invoices', invoicesRoutes)

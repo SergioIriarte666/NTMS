@@ -29,6 +29,8 @@ router.post('/', requireAuth, (req: AuthedRequest, res: Response) => {
   requirePermission(canWriteBilling, req, res, () => {
     const client_id = String(req.body?.client_id ?? '')
     const service_id = req.body?.service_id ? String(req.body.service_id) : undefined
+    const branch_id_raw = req.body?.branch_id != null ? String(req.body.branch_id) : undefined
+    const branch_id = branch_id_raw && branch_id_raw.trim() ? branch_id_raw.trim() : undefined
     const issue_date = String(req.body?.issue_date ?? new Date().toISOString().slice(0, 10)).slice(0, 10)
     const due_date = req.body?.due_date ? String(req.body.due_date).slice(0, 10) : undefined
     const invoice_number = req.body?.invoice_number ? String(req.body.invoice_number) : undefined
@@ -52,10 +54,12 @@ router.post('/', requireAuth, (req: AuthedRequest, res: Response) => {
       const supabase = getSupabaseAdmin()
 
       let serviceSubtotal = 0
+      let serviceClientId: string | null = null
+      let serviceBranchId: string | null = null
       if (service_id) {
         const svc = await supabase
           .from('services')
-          .select('agreed_amount')
+          .select('agreed_amount, client_id, branch_id')
           .eq('id', service_id)
           .eq('user_id', req.user!.id)
           .single()
@@ -64,6 +68,28 @@ router.post('/', requireAuth, (req: AuthedRequest, res: Response) => {
           return
         }
         serviceSubtotal = Number(svc.data?.agreed_amount ?? 0)
+        serviceClientId = svc.data?.client_id ? String(svc.data.client_id) : null
+        serviceBranchId = svc.data?.branch_id ? String(svc.data.branch_id) : null
+
+        if (serviceClientId && serviceClientId !== client_id) {
+          res.status(400).json({ success: false, error: 'client_id no coincide con el servicio' })
+          return
+        }
+      }
+
+      if (!service_id && branch_id) {
+        const { data: branch, error: branchErr } = await supabase
+          .from('client_branches')
+          .select('id')
+          .eq('id', branch_id)
+          .eq('user_id', req.user!.id)
+          .eq('client_id', client_id)
+          .maybeSingle()
+
+        if (branchErr || !branch) {
+          sendSupabaseError(res, 400, branchErr, 'Sucursal inválida')
+          return
+        }
       }
 
       const computedSubtotal = subtotal ?? serviceSubtotal
@@ -74,6 +100,7 @@ router.post('/', requireAuth, (req: AuthedRequest, res: Response) => {
         user_id: req.user!.id,
         client_id,
         service_id: service_id ?? null,
+        branch_id: service_id ? serviceBranchId : (branch_id ?? null),
         invoice_number: invoice_number ?? null,
         issue_date,
         due_date: due_date ?? null,
@@ -98,9 +125,54 @@ router.patch('/:id', requireAuth, (req: AuthedRequest, res: Response) => {
     const id = String(req.params.id)
     void (async () => {
       const supabase = getSupabaseAdmin()
+      const nextClientId = req.body?.client_id != null ? String(req.body.client_id) : undefined
+      const branchRaw = req.body?.branch_id != null ? String(req.body.branch_id) : undefined
+      const branchIdToSet =
+        branchRaw === undefined
+          ? (nextClientId != null ? null : undefined)
+          : branchRaw.trim()
+            ? branchRaw.trim()
+            : null
+
+      if (branchIdToSet && typeof branchIdToSet === 'string') {
+        let clientIdForBranch = nextClientId
+        if (!clientIdForBranch) {
+          const { data: inv, error: invErr } = await supabase
+            .from('invoices')
+            .select('client_id')
+            .eq('id', id)
+            .eq('user_id', req.user!.id)
+            .maybeSingle()
+
+          if (invErr) {
+            sendSupabaseError(res, 400, invErr, 'Factura inválida')
+            return
+          }
+          if (!inv) {
+            res.status(404).json({ success: false, error: 'Factura no encontrada' })
+            return
+          }
+          clientIdForBranch = String(inv.client_id)
+        }
+
+        const { data: branch, error: branchErr } = await supabase
+          .from('client_branches')
+          .select('id')
+          .eq('id', branchIdToSet)
+          .eq('user_id', req.user!.id)
+          .eq('client_id', clientIdForBranch)
+          .maybeSingle()
+
+        if (branchErr || !branch) {
+          sendSupabaseError(res, 400, branchErr, 'Sucursal inválida')
+          return
+        }
+      }
+
       const patch = {
-        client_id: req.body?.client_id != null ? String(req.body.client_id) : undefined,
+        client_id: nextClientId,
         service_id: req.body?.service_id != null ? String(req.body.service_id) : undefined,
+        branch_id: branchIdToSet,
         invoice_number: req.body?.invoice_number != null ? String(req.body.invoice_number) : undefined,
         issue_date: req.body?.issue_date != null ? String(req.body.issue_date).slice(0, 10) : undefined,
         due_date: req.body?.due_date != null ? String(req.body.due_date).slice(0, 10) : undefined,

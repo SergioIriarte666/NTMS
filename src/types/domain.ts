@@ -15,6 +15,19 @@ export type Client = {
   updated_at: string
 }
 
+export type ClientBranch = {
+  id: string
+  client_id: string
+  name: string
+  direccion?: string
+  email?: string
+  telefono?: string
+  is_default: boolean
+  notes?: string
+  created_at: string
+  updated_at: string
+}
+
 export type VehicleStatus = 'disponible' | 'ocupado' | 'mantencion' | 'inactivo'
 
 export type Vehicle = {
@@ -22,6 +35,14 @@ export type Vehicle = {
   patente: string
   tipo?: string
   capacidad?: string
+  empresa_rut?: string
+  empresa_razon_social?: string
+  marca?: string
+  modelo?: string
+  categoria_peaje?: string
+  venc_permiso_circulacion?: string
+  venc_seguro?: string
+  venc_revision_tecnica?: string
   status: VehicleStatus
   is_active: boolean
   created_at: string
@@ -47,6 +68,7 @@ export type ServiceStatus = 'pendiente' | 'asignado' | 'en_curso' | 'completado'
 export type Service = {
   id: string
   client_id: string
+  branch_id?: string
   service_date: string
   start_time?: string
   origin?: string
@@ -69,6 +91,7 @@ export type Invoice = {
   id: string
   client_id: string
   service_id?: string
+  branch_id?: string
   invoice_number?: string
   issue_date: string
   due_date?: string
@@ -89,4 +112,3 @@ export type Payment = {
   reference?: string
   created_at: string
 }
-
