@@ -40,8 +40,9 @@ export function Modal({
             onClick={onClose}
             aria-label={closeLabel ?? 'Cerrar'}
             className={cn(
-              'rounded-md px-2 py-1 text-sm text-zinc-600 transition hover:bg-black/5 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-zinc-100',
-              closeIcon && 'h-9 w-9 rounded-full border border-black/10 bg-black/5 p-0 dark:border-white/10 dark:bg-white/5',
+              closeIcon
+                ? 'inline-flex h-10 w-10 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-700 shadow-sm transition hover:bg-zinc-50 hover:text-zinc-900 dark:border-white/10 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-white/5 dark:hover:text-zinc-100'
+                : 'rounded-md px-2 py-1 text-sm text-zinc-600 transition hover:bg-black/5 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-zinc-100',
             )}
           >
             {closeIcon ?? 'Cerrar'}

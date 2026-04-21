@@ -2,7 +2,11 @@ import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard,
   Users,
+  Building2,
   ClipboardList,
+  Warehouse,
+  Car,
+  Wallet,
   Truck,
   UserRound,
   Receipt,
@@ -16,7 +20,11 @@ import { AnimatedTowTruckLogo } from '@/components/media/AnimatedTowTruckLogo'
 const items = [
   { to: '/app/dashboard', label: 'Panel', icon: LayoutDashboard },
   { to: '/app/clientes', label: 'Clientes', icon: Users },
+  { to: '/app/proveedores', label: 'Proveedores', icon: Building2 },
   { to: '/app/servicios', label: 'Servicios', icon: ClipboardList },
+  { to: '/app/bodega', label: 'Bodega', icon: Warehouse },
+  { to: '/app/vehiculos', label: 'Vehículos', icon: Car },
+  { to: '/app/gastos', label: 'Gastos', icon: Wallet },
   { to: '/app/flota', label: 'Flota', icon: Truck },
   { to: '/app/operadores', label: 'Operadores', icon: UserRound },
   { to: '/app/facturacion', label: 'Facturación', icon: Receipt },

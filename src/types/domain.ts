@@ -28,6 +28,67 @@ export type ClientBranch = {
   updated_at: string
 }
 
+export type Provider = {
+  id: string
+  rut?: string
+  razon_social: string
+  giro?: string
+  direccion?: string
+  email?: string
+  telefono?: string
+  is_active: boolean
+  payment_terms?: string
+  notes?: string
+  created_at: string
+  updated_at: string
+}
+
+export type InventoryProduct = {
+  id: string
+  sku: string
+  name: string
+  description?: string
+  unit?: string
+  min_stock?: number
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export type InventoryProductWithStock = InventoryProduct & {
+  stock: number
+}
+
+export type InventoryMovementType = 'ingreso' | 'egreso' | 'ajuste'
+
+export type InventoryMovement = {
+  id: string
+  product_id: string
+  movement_type: InventoryMovementType
+  quantity: number
+  unit_cost?: number
+  reference?: string
+  notes?: string
+  movement_date: string
+  created_at: string
+}
+
+export type VehicleBrand = {
+  id: string
+  name: string
+  created_at: string
+  updated_at: string
+}
+
+export type VehicleModel = {
+  id: string
+  brand_id: string
+  name: string
+  brand_name?: string | null
+  created_at: string
+  updated_at: string
+}
+
 export type VehicleStatus = 'disponible' | 'ocupado' | 'mantencion' | 'inactivo'
 
 export type Vehicle = {
@@ -47,6 +108,34 @@ export type Vehicle = {
   is_active: boolean
   created_at: string
   updated_at: string
+}
+
+export type ExpenseCategory = {
+  id: string
+  name: string
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export type ExpensePaymentMethod = 'efectivo' | 'transferencia' | 'tarjeta' | 'otro'
+
+export type Expense = {
+  id: string
+  category_id: string
+  expense_date: string
+  amount: number
+  payment_method: ExpensePaymentMethod
+  provider_id?: string | null
+  attachment_url?: string | null
+  notes?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type ExpenseWithDetails = Expense & {
+  category?: { id: string; name: string } | null
+  provider?: { id: string; razon_social: string } | null
 }
 
 export type DriverStatus = 'disponible' | 'ocupado' | 'licencia' | 'inactivo'

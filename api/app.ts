@@ -13,7 +13,11 @@ import authRoutes from './routes/auth.js'
 import clientsRoutes from './routes/clients.js'
 import branchesRoutes from './routes/branches.js'
 import clientBranchesRoutes from './routes/clientBranches.js'
+import providersRoutes from './routes/providers.js'
 import servicesRoutes from './routes/services.js'
+import inventoryRoutes from './routes/inventory.js'
+import vehiclesRoutes from './routes/vehicles.js'
+import expensesRoutes from './routes/expenses.js'
 import fleetRoutes from './routes/fleet.js'
 import invoicesRoutes from './routes/invoices.js'
 import paymentsRoutes from './routes/payments.js'
@@ -34,7 +38,11 @@ app.use('/api/auth', authRoutes)
 app.use('/api/clients', clientsRoutes)
 app.use('/api/branches', branchesRoutes)
 app.use('/api/clients/:clientId/branches', clientBranchesRoutes)
+app.use('/api/providers', providersRoutes)
 app.use('/api/services', servicesRoutes)
+app.use('/api/inventory', inventoryRoutes)
+app.use('/api/vehicles', vehiclesRoutes)
+app.use('/api/expenses', expensesRoutes)
 app.use('/api/fleet', fleetRoutes)
 app.use('/api/invoices', invoicesRoutes)
 app.use('/api/payments', paymentsRoutes)

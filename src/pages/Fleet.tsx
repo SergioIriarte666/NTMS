@@ -199,7 +199,7 @@ export default function Fleet() {
         open={openVehicle}
         title={editingVehicle ? 'Modifica los datos de la grúa' : 'Registra los datos de la grúa'}
         titleClassName="text-violet-300"
-        closeIcon={<X className="h-4 w-4" />}
+        closeIcon={<X className="h-5 w-5" />}
         closeLabel="Cerrar"
         description={editable ? undefined : 'Tu rol es solo lectura.'}
         onClose={() => setOpenVehicle(false)}
